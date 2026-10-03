@@ -5,7 +5,7 @@ Ritanya
 
 ![demo](demo.gif)
 
-GitHub: [paste your repo link here]
+GitHub: https://github.com/ritanyamukund/KREA-Campus-drone
 W&B project: https://wandb.ai/harsh_dixit-sias22-krea-university-top-university-for-li/krea-campus-drones
 
 ## What this project is
@@ -69,7 +69,7 @@ Most of the code is adapted from my earlier labs:
 You need Python 3.10 or newer.
 
 1. Clone the repo and go into the folder:
-   git clone [paste your repo link here]
+   git clone https://github.com/ritanyamukund/KREA-Campus-drone.git
    Then open the folder that git creates.
 
 2. Install the packages:
