@@ -1,0 +1,38 @@
+[
+  {
+    "role": "system",
+    "content": "\nyou are a campus delivery drone dispatcher at Krea University.\nevery turn reply with ONE json object and nothing else. no markdown fences,\nno extra text before/after. shape:\n\n{\n  \"thought\": \"...\",\n  \"action\": \"find_path\" | \"verify_delivery\" | \"ask_user\" | \"finish\",\n  \"action_input\": { ... }\n}\n\nthe 4 actions:\n\n1. find_path\n   {\"pickup\": \"<location>\", \"dropoff\": \"<location>\"}\n   valid locations: Dock, NAB, JSW, Kalai, Narsi, Bhagat Ji, Library, RH-1, RH-5, SAZ\n\n2. verify_delivery\n   {\"pickup\": \"...\", \"dropoff\": \"...\", \"battery_pct\": <number>, \"payload_kg\": <number>}\n   always call this before finish. it checks the battery reserve and payload limit.\n\n3. ask_user\n   {\"question\": \"...\"} - only if the fix needs a real human choice (charge first\n   vs use another drone, split the order etc), not stuff you can figure out\n\n4. finish\n   {\"summary\": \"...\", \"pickup\": \"...\", \"dropoff\": \"...\", \"floor\": <int>, \"item\": \"...\"}\n\nrule 1 - if verify_delivery says UNSATISFIABLE you cannot resend the same\naction_input again. read the diagnostics/feedback first, then either send a\ngenuinely different payload or ask_user if it's a judgment call.\n\nrule 2 - dont call finish saying the delivery works unless the LAST\nverify_delivery call for that exact plan said SATISFIABLE. if its impossible\njust say that directly using the diagnostic reason, dont be vague.\n"
+  },
+  {
+    "role": "user",
+    "content": "Deliver books from Dock to RH-1, floor 1. Drone has 18% battery and payload is 2kg."
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Check whether the drone can complete a delivery from Dock to RH-1 (floor 1) given current battery and payload. Must verify battery reserve and payload limits before planning finish.\",\n  \"action\": \"verify_delivery\",\n  \"action_input\": {\n    \"pickup\": \"Dock\",\n    \"dropoff\": \"RH-1\",\n    \"battery_pct\": 18,\n    \"payload_kg\": 2\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"status\": \"UNSATISFIABLE\", \"diagnostics\": {\"trip_cost_pct\": 3.42, \"battery_after\": 14.58, \"min_reserve\": 15, \"payload_kg\": 2.0, \"max_payload_kg\": 5}, \"feedback\": \"UNSAT: this trip costs 3.42% so battery would end at 14.58%, under the 15% reserve. charge the drone or use a drone with more battery.\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Diagnostics show trip cost 3.42% leaving battery 14.58% which is below the 15% reserve. Payload is OK. This requires a human choice (charge this drone or use another drone). I cannot re-send the same verify_delivery payload.\",\n  \"action\": \"ask_user\",\n  \"action_input\": {\n    \"question\": \"Current battery 18% is 0.42% short (required start >= 18.42%) to meet the 15% reserve. Do you want to: (A) charge this drone to at least 19% and then I will re-run verification, (B) use a different drone with >=19% battery, or (C) cancel the delivery?\"\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"user_reply\": \"charge it to 50% first\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"User requested charging to 50%. Re-run verification for Dock -> RH-1 with battery at 50% and payload 2 kg.\",\n  \"action\": \"verify_delivery\",\n  \"action_input\": {\n    \"pickup\": \"Dock\",\n    \"dropoff\": \"RH-1\",\n    \"battery_pct\": 50,\n    \"payload_kg\": 2\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"status\": \"SATISFIABLE\", \"path\": [\"Dock\", \"Library\", \"RH-1\"], \"trip_cost_pct\": 3.42, \"battery_after\": 46.58, \"feedback\": \"Delivery verified mathematically.\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Last verification returned SATISFIABLE for Dock -> RH-1 with battery 50% and payload 2 kg; path Dock -> Library -> RH-1, trip cost 3.42%, battery after 46.58%. Proceed to finish the delivery.\",\n  \"action\": \"finish\",\n  \"action_input\": {\n    \"summary\": \"Pickup books at Dock, follow path Dock -> Library -> RH-1, deliver to RH-1 floor 1. Start battery 50%, trip cost 3.42%, estimated battery after 46.58%. Payload 2 kg within limits.\",\n    \"pickup\": \"Dock\",\n    \"dropoff\": \"RH-1\",\n    \"floor\": 1,\n    \"item\": \"books\"\n  }\n}"
+  }
+]

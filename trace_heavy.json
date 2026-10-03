@@ -1,0 +1,54 @@
+[
+  {
+    "role": "system",
+    "content": "\nyou are a campus delivery drone dispatcher at Krea University.\nevery turn reply with ONE json object and nothing else. no markdown fences,\nno extra text before/after. shape:\n\n{\n  \"thought\": \"...\",\n  \"action\": \"find_path\" | \"verify_delivery\" | \"ask_user\" | \"finish\",\n  \"action_input\": { ... }\n}\n\nthe 4 actions:\n\n1. find_path\n   {\"pickup\": \"<location>\", \"dropoff\": \"<location>\"}\n   valid locations: Dock, NAB, JSW, Kalai, Narsi, Bhagat Ji, Library, RH-1, RH-5, SAZ\n\n2. verify_delivery\n   {\"pickup\": \"...\", \"dropoff\": \"...\", \"battery_pct\": <number>, \"payload_kg\": <number>, \"start\": \"<where the drone is now>\"}\n   always call this before finish. it checks the battery reserve and payload limit.\n\n3. ask_user\n   {\"question\": \"...\"} - only if the fix needs a real human choice (charge first\n   vs use another drone, split the order etc), not stuff you can figure out\n\n4. finish\n   {\"summary\": \"...\", \"pickup\": \"...\", \"dropoff\": \"...\", \"floor\": <int>, \"item\": \"...\"}\n\nrule 1 - if verify_delivery says UNSATISFIABLE you cannot resend the same\naction_input again. read the diagnostics/feedback first, then either send a\ngenuinely different payload or ask_user if it's a judgment call.\n\nrule 2 - dont call finish saying the delivery works unless the LAST\nverify_delivery call for that exact plan said SATISFIABLE. if its impossible\njust say that directly using the diagnostic reason, dont be vague.\n"
+  },
+  {
+    "role": "user",
+    "content": "Deliver parcel from NAB to SAZ, floor 3. Drone has 90% battery and payload is 7kg."
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Plan route from NAB to SAZ first so we can verify battery and payload against distance. Will request path computation for that origin/destination.\",\n  \"action\": \"find_path\",\n  \"action_input\": {\n    \"pickup\": \"NAB\",\n    \"dropoff\": \"SAZ\"\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"path\": [\"NAB\", \"Kalai\", \"SAZ\"], \"distance_m\": 510, \"battery_cost_pct\": 2.55}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Verify that a drone starting at NAB with 90% battery and 7kg payload can complete NAB->SAZ route (computed cost 2.55%). Assume drone is currently at NAB for pickup.\",\n  \"action\": \"verify_delivery\",\n  \"action_input\": {\n    \"pickup\": \"NAB\",\n    \"dropoff\": \"SAZ\",\n    \"battery_pct\": 90,\n    \"payload_kg\": 7,\n    \"start\": \"NAB\"\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"status\": \"UNSATISFIABLE\", \"diagnostics\": {\"trip_cost_pct\": 2.55, \"battery_after\": 87.45, \"min_reserve\": 15, \"payload_kg\": 7.0, \"max_payload_kg\": 5}, \"feedback\": \"UNSAT: payload 7.0kg is over the 5kg limit. split it into smaller trips or drop part of it.\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Delivery is UNSATISFIABLE because payload 7kg > max 5kg. Need user's decision: split the parcel, remove weight, or choose another drone/solution. Ask user which option to take and confirm floor 3.\",\n  \"action\": \"ask_user\",\n  \"action_input\": {\n    \"question\": \"Payload is 7.0kg but drone limit is 5kg. Choose one: (A) Split into two deliveries (5kg + 2kg) \u2014 I will dispatch two trips sequentially; (B) Reduce payload to \u22645kg so a single delivery can proceed; (C) Try to use an alternate higher-capacity drone (may delay). Which do you prefer? Confirm delivery floor remains 3.\"\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"user_reply\": \"A, split into 5kg and 2kg. floor 3 is fine.\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Proceed with two sequential trips. Verify the first leg: 5kg from NAB->SAZ starting at NAB with 90% battery.\",\n  \"action\": \"verify_delivery\",\n  \"action_input\": {\n    \"pickup\": \"NAB\",\n    \"dropoff\": \"SAZ\",\n    \"battery_pct\": 90,\n    \"payload_kg\": 5,\n    \"start\": \"NAB\"\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"status\": \"SATISFIABLE\", \"path\": [\"NAB\", \"Kalai\", \"SAZ\"], \"trip_cost_pct\": 2.55, \"battery_after\": 87.45, \"feedback\": \"Delivery verified mathematically.\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"First trip (5kg) verified SAT. Now verify second trip: 2kg needs pickup at NAB but drone is currently at SAZ with battery 87.45%. Check SAZ->NAB reposition + NAB->SAZ delivery with 2kg payload.\",\n  \"action\": \"verify_delivery\",\n  \"action_input\": {\n    \"pickup\": \"NAB\",\n    \"dropoff\": \"SAZ\",\n    \"battery_pct\": 87.45,\n    \"payload_kg\": 2,\n    \"start\": \"SAZ\"\n  }\n}"
+  },
+  {
+    "role": "user",
+    "content": "{\"status\": \"SATISFIABLE\", \"path\": [\"SAZ\", \"Kalai\", \"NAB\", \"Kalai\", \"SAZ\"], \"trip_cost_pct\": 5.1, \"battery_after\": 82.35, \"feedback\": \"Delivery verified mathematically.\"}"
+  },
+  {
+    "role": "assistant",
+    "content": "{\n  \"thought\": \"Both verify checks returned SATISFIABLE: first trip (5kg) NAB->SAZ verified; second trip (2kg) including reposition SAZ->NAB->SAZ verified. Ready to finish and dispatch sequentially.\",\n  \"action\": \"finish\",\n  \"action_input\": {\n    \"summary\": \"Two sequential trips: Trip 1 - NAB->SAZ carrying 5kg (battery cost 2.55%, battery after 87.45%). Trip 2 - reposition SAZ->NAB->NAB->SAZ carrying 2kg (total reposition+delivery cost 5.1%, battery after 82.35%). Both trips verified SATISFIABLE. Final battery after completing both: 82.35%.\",\n    \"pickup\": \"NAB\",\n    \"dropoff\": \"SAZ\",\n    \"floor\": 3,\n    \"item\": \"Parcel split into 5kg and 2kg (total 7kg)\"\n  }\n}"
+  }
+]
